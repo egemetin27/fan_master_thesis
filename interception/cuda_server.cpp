@@ -13,7 +13,7 @@
 
 #include "gpu_instance.h"
 
-#define SOCKET_PATH "/home/ubuntu/firecracker/v.sock_1234"
+#define SOCKET_PATH "/u/home/mege/workspace/tmp/v.sock_1234"
 
 /**
  * @class CUDAServer

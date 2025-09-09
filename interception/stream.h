@@ -88,6 +88,9 @@ class VsockHandle{
         sa.svm_port = port;
 
         std::cout << "Connecting to host ..." << std::endl;
+        std::cout << "Vsock destination: cid=" << sa.svm_cid
+            << ", port=" << sa.svm_port << ", family=" << sa.svm_family
+            << ", sock=" << sock << std::endl;
         if(connect(sock, (struct sockaddr*)&sa, sizeof(sa)) < 0) perror("connect");
 
         return sock;
