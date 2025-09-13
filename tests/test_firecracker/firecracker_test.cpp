@@ -1,17 +1,17 @@
+#include <cstdio>
 #include <cuda.h>
 #include <iostream>
 #include <vector>
-#include <cstdio>
 /**
  * TODO1: cuLaunchKernel
  * TODO1: cuMemcpyDtoH
  */
 
 // Error checking macro
-#define CUDA_CHECK(err) \
-    if (err != CUDA_SUCCESS) { \
-        std::cerr << "CUDA error: " << err << " at line " << __LINE__ << std::endl; \
-        exit(EXIT_FAILURE); \
+#define CUDA_CHECK(err)                                                                                                     \
+    if (err != CUDA_SUCCESS) {                                                                                              \
+        std::cerr << "CUDA error: " << err << " at line " << __LINE__ << std::endl;                                         \
+        exit(EXIT_FAILURE);                                                                                                 \
     }
 
 int main() {
@@ -45,7 +45,7 @@ int main() {
 
     // Load module and kernel
     CUmodule module;
-    CUDA_CHECK(cuModuleLoad(&module, "/home/ubuntu/fan_thesis/fan_master_thesis/vector_add.ptx"));
+    CUDA_CHECK(cuModuleLoad(&module, "/root/fan-ege/vector_add.ptx"));
     std::cout << "completing module load" << std::endl;
     CUfunction vectorAdd;
     CUDA_CHECK(cuModuleGetFunction(&vectorAdd, module, "vectorAdd"));
@@ -54,13 +54,11 @@ int main() {
     // Launch kernel
     int threadsPerBlock = 256;
     int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
-    void *args[] = { &d_A, &d_B, &d_C, &N };
-    cuLaunchKernel(vectorAdd,
-                  blocksPerGrid, 1, 1,      // Grid dimensions
-                  threadsPerBlock, 1, 1,    // Block dimensions
-                  0, nullptr,               // Shared memory and stream
-                  args, nullptr);           // Kernel arguments
-
+    void *args[] = {&d_A, &d_B, &d_C, &N};
+    cuLaunchKernel(vectorAdd, blocksPerGrid, 1, 1, // Grid dimensions
+                   threadsPerBlock, 1, 1,          // Block dimensions
+                   0, nullptr,                     // Shared memory and stream
+                   args, nullptr);                 // Kernel arguments
 
     // Copy result back to host
     printf("before the transfer, h_C[0] = %f\n", h_C[0]);

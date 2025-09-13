@@ -7,19 +7,48 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <cstdlib>
+#include <fstream>
 #include "stream.h"
 #include "type_decl.h"
 #include <cuda.h>
 
-#define VSOCK_HOST_CID 2
-#define VSOCK_PORT 1234
+#define VSOCK_HOST_CID_DEFAULT 2
+#define VSOCK_PORT_DEFAULT 1234
 #define BUFFER_RECV 200
 #define SHM_PATH "/dev/vdb"
 
 //TODO add size exception control (when the BUFFER_SIZE is too small)
+namespace fcgpu_cfg {
+inline unsigned parse_port_env(const char* name, unsigned defv){
+    const char* e = std::getenv(name);
+    if(!e || !*e) return defv;
+    char* end=nullptr;
+    unsigned long v = std::strtoul(e,&end,10);
+    if(end==e || v<1 || v>65535) return defv;
+    return (unsigned)v;
+}
+inline unsigned server_port(){
+    static unsigned cached = 0;
+    if(cached) return cached;
+    // priority: FC_SERVER_PORT > FC_SERVER_PORT_FILE > default
+    const char* p = std::getenv("FC_SERVER_PORT");
+    if(p && *p){ cached = parse_port_env("FC_SERVER_PORT", VSOCK_PORT_DEFAULT); return cached; }
+    const char* f = std::getenv("FC_SERVER_PORT_FILE");
+    if(f && *f){
+        std::ifstream in(f);
+        unsigned long v=0; if(in && (in>>v) && v>0 && v<=65535){ cached=(unsigned)v; return cached; }
+    }
+    cached = VSOCK_PORT_DEFAULT; return cached;
+}
+inline unsigned host_cid(){
+    return parse_port_env("FC_HOST_CID", VSOCK_HOST_CID_DEFAULT);
+}
+} // namespace fcgpu_cfg
+
 class CUDAClient{
   public:
-    CUDAClient() : vsock_handle_(VsockHandle(VSOCK_HOST_CID, VSOCK_PORT)),
+    CUDAClient() : vsock_handle_(VsockHandle(fcgpu_cfg::host_cid(), fcgpu_cfg::server_port())),
                    vgpu_(SHM_PATH, (1 << 20) * 9){};
     ~CUDAClient(){};
 
@@ -40,19 +69,16 @@ class CUDAClient{
     }
 
     /**
-     * @brief synchronize the operation with the host when finished.
-     * @return the exact `CUresult` from the host.
+     * @brief synchronize the operation with the host when needed.
+     * @ref
+     *  - cuMemcpy
+     *  - cuMemcpyAsync
+     *  - cuStreamSynchronize
+     *  - cuDeviceSynchronize
      */
-    CUresult wait_recv(){
-        vsock_handle_.receive(response_.data(), response_.size());
-        response_.reset();
-        return response_.curesult();
-    }
-
-    template <typename... Args>
-    CUresult wait_recv(Args... args){
-        vsock_handle_.receive(response_.data(), response_.size());
-        (response_ >> ... >> args);
+    CUresult synchronize() {
+        vgpu_.wait_data();
+        response_ << vgpu_.get();
         response_.reset();
         return response_.curesult();
     }
