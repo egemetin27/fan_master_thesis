@@ -76,6 +76,7 @@ int main() {
     }
 
     std::cout << (success ? "Test PASSED!" : "Test FAILED!") << std::endl;
+    printf("A=%p B=%p C=%p\n",(void*)d_A,(void*)d_B,(void*)d_C);
 
     // Cleanup
     CUDA_CHECK(cuMemFree(d_A));

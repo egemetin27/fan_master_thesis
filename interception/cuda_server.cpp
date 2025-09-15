@@ -161,7 +161,11 @@ int main(int argc, char **argv) {
     uds = uds_path.c_str();
 
     std::cout << "cuda_server running ..." << std::endl;
-    cuInit(0);
+    CUresult init = cuInit(0);
+    if (init != CUDA_SUCCESS) {
+        fprintf(stderr, "cuInit failed: %d\n", (int)init);
+        return 1;
+    }
     server = new CUDAServer{};
     signal(SIGINT, handle_signal);
     signal(SIGABRT, handle_signal);
