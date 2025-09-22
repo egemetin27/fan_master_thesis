@@ -71,7 +71,7 @@ class CUDAClient{
       : vsock_handle_(VsockHandle(fcgpu_cfg::host_cid(), fcgpu_cfg::server_port())),
         vgpu_(SHM_PATH, (1 << 20) * 9)
     {}
-    ~CUDAClient() = default;
+    ~CUDAClient(){};
 
     /**
      * @brief redirect the intercepted cuda function to the host.
@@ -85,52 +85,50 @@ class CUDAClient{
 
         vsock_handle_.transmit(serializer_.data(), serializer_.size());
         serializer_.clean();
-        // non-blocking; caller usually follows with wait_recv()/synchronize()
+
+        // CUresult result = wait_recv();
     }
 
     /**
-     * @brief fetch a response frame from the host and return CUresult.
-     * This replaces the previous use of vgpu_.wait_data() (which your class doesn’t have).
-     * Assumption: vgpu_.get() blocks until data is ready.
+     * @brief synchronize the operation with the host when finished.
+     * @return the exact `CUresult` from the host.
      */
-    CUresult synchronize() {
-        // Pull one response frame and parse it into Response
-        response_ << vgpu_.get();
-        // If your Response needs explicit reset between calls, keep this:
+    CUresult wait_recv(){
+        vsock_handle_.receive(response_.data(), response_.size());
+        response_.reset();
+        return response_.curesult();
+    }
+
+    template <typename... Args>
+    CUresult wait_recv(Args... args){
+        vsock_handle_.receive(response_.data(), response_.size());
+        (response_ >> ... >> args);
         response_.reset();
         return response_.curesult();
     }
 
     /**
-     * @brief compatibility shim for interception.cpp:
-     * interception.cpp calls client.wait_recv(...) with varying arguments.
-     * We don’t need to inspect those args here for compilation — we just
-     * fetch the response and return the CUresult.
+     * @brief send guest data to the virtual gpu for later offloading on the host.
      */
-    template <typename... Outs>
-    CUresult wait_recv(Outs&&... /*outs*/) {
-        return synchronize();
-    }
-
-    // Data movement helpers used by some hooks
     void to_device(const void* data_ptr, size_t data_size){
         vgpu_.to_device(data_ptr, data_size);
     }
 
+    /**
+     * @brief read data from vsock to get data from the virtual gpu.
+     */
     void from_device(void* data_ptr, size_t data_size){
         vgpu_.from_device(data_ptr, data_size);
     }
 
-    // Optional getters (keep if your code uses them)
-    uint64_t get_scalar_result() { return response_.cuscalar(); }
-    CUresult get_curesult()      { return response_.curesult(); }
-    void close()                 { vsock_handle_.close_socket(); }
-
+    uint64_t get_scalar_result() { return response_.cuscalar(); };
+    CUresult get_curesult() { return response_.curesult(); };
+    void close() { vsock_handle_.close_socket(); };
   private:
     VsockHandle vsock_handle_;
-    VirtualGPU  vgpu_;
-    Response    response_;
-    Serializer  serializer_;
+    VirtualGPU vgpu_;
+    Response response_;
+    Serializer serializer_;
 };
 
-#endif // CUDA_CLIENT_H
+#endif
